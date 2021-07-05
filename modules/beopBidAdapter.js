@@ -76,8 +76,29 @@ export const spec = {
     }
     return bids;
   },
-  getUserSyncs: function(syncOptions, serverResponses, gdprConsent, uspConsent) {},
-  onTimeout: function(timeoutData) {},
+  onTimeout: function(timeoutData) {
+    if (timeoutData == null) {
+      return;
+    }
+    let trackingParams = {
+      pid: utils.getValue(timeoutData.params, 'accountId'),
+      nid: utils.getValue(timeoutData.params, 'networkId'),
+      nptnid: utils.getValue(timeoutData.params, 'networkPatnerId'),
+      bid: timeoutData.bidId,
+      sl_n: timeoutData.adUnitCode,
+      aid: timeoutData.auctionId,
+      se_ca: 'bid',
+      se_ac: 'timeout',
+      se_va: timeoutData.timeout
+    };
+
+    utils.logWarn(BIDDER_CODE + ': timed out request');
+    utils.triggerPixel(utils.buildUrl({
+                           protocol: 'https',
+                           hostname: 't.beop.io',
+                           pathname: '/i',
+                           search: trackingParams}));
+  },
   onBidWon: function(bid) {},
   onSetTargeting: function(bid) {}
 }
