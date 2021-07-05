@@ -99,8 +99,31 @@ export const spec = {
                            pathname: '/i',
                            search: trackingParams}));
   },
-  onBidWon: function(bid) {},
-  onSetTargeting: function(bid) {}
+  onBidWon: function(bid) {
+    if (bid == null) {
+          return;
+    }
+    let trackingParams = {
+      pid: utils.getValue(bid.params, 'accountId'),
+      nid: utils.getValue(bid.params, 'networkId'),
+      nptnid: utils.getValue(bid.params, 'networkPatnerId'),
+      bid: bid.bidId,
+      brid: bid.requestId,
+      sl_n: bid.adUnitCode,
+      aid: bid.auctionId,
+      se_ca: 'bid',
+      se_ac: 'won',
+      se_va: bid.cpm
+    };
+
+    utils.logInfo(BIDDER_CODE + ': won request');
+    utils.triggerPixel(utils.buildUrl({
+                           protocol: 'https',
+                           hostname: 't.beop.io',
+                           pathname: '/i',
+                           search: trackingParams}));
+  },
+  onSetTargeting: function(bid) {return;}
 }
 
 /** function mongoObjectId() {
