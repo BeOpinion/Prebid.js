@@ -1,5 +1,6 @@
 import * as utils from '../src/utils.js';
 import { registerBidder } from '../src/adapters/bidderFactory.js';
+import { BANNER, VIDEO } from '../src/mediaTypes.js';
 import { config } from '../src/config.js';
 const BIDDER_CODE = 'beop';
 const ENDPOINT_URL = 'https://s.beop.io/bid';
@@ -19,7 +20,7 @@ export const spec = {
       let regexp = new RegExp('^[0-9a-fA-F]{24}$');
       let accountIdToTest = utils.getValue(bid.params, 'accountId') || utils.getValue(bid.params, 'networkId')
       let isValidAccountId = regexp.test(accountIdToTest);
-      let isBannerMediaTypeAllowed = bid.mediaTypes.banner !== 'undefined';
+      let isBannerMediaTypeAllowed = bid.mediaType === BANNER || deepAccess(bid, 'mediaTypes.banner');
       isValid = isValidAccountId && isBannerMediaTypeAllowed;
       if (!isValid && !isValidAccountId) {
         utils.logError('BeOp requires a valid accountId in the Bid Parameters → Bid is aborted');
@@ -56,7 +57,7 @@ export const spec = {
       dbg: false,
       slts: slots,
       is_amp: utils.deepAccess(bidderRequest, 'referrerInfo.isAmp'),
-      tc_string: (gdpr && gdpr.gdprApplies) ?
+      tc_string: (gdpr && gdpr.gdprApplies) ? gdpr.consentString : '';
     };
     const payloadString = JSON.stringify(payloadObject);
     return {
@@ -69,6 +70,7 @@ export const spec = {
     let bids = [];
     if (serverResponse && serverResponse.body && utils.isArray(serverResponse.body.bids && serverResponse.body.bids.length)){
       serverResponse.body.bids.forEach((bid) => {
+        // For now, no transformation to do
         bids.push(bid);
       });
     }
@@ -89,9 +91,25 @@ export const spec = {
 
 function beOpRequestObjectMaker(bid) {
   const beOpReqObject = {};
+  let bannerReq = utils.deepAccess(bid, 'mediaTypes.banner');
+  let bannerSizes = bannerReq.sizes;
+
+  beOpReqObject.sizes = utils.isArray(bannerSizes) ? utils.isArray(bannerSizes) : bid.sizes;
+
+  var publisherCurrency = utils.getValue(bid.params, 'currency') || 'EUR';
+  var floor;
+  if (typeof bid.getFloor === 'function') {
+    const floorInfo = bid.getFloor({currency: publisherCurrency,'banner',[1,1]});
+    if (typeof floorInfo === 'object' && floorInfo.currency === publisherCurrency && !isNaN(parseFloat(floorInfo.floor))) {
+      floor = parseFloat(floorInfo.floor);
+    }
+  }
+  beOpReqObject.flr = floor;
+
   beOpReqObject.pid = utils.getValue(bid.params, 'accountId');
   beOpReqObject.nid = utils.getValue(bid.params, 'networkId');
   beOpReqObject.nptnid = utils.getValue(bid.params, 'networkPatnerId');
+
   beOpReqObject.bid = utils.getBidIdParameter('bidId', bid);
   beOpReqObject.brid = utils.getBidIdParameter('bidderRequestId', bid);
   beOpReqObject.name = utils.getBidIdParameter('adUnitCode', bid);
@@ -100,6 +118,8 @@ function beOpRequestObjectMaker(bid) {
   beOpReqObject.brc = utils.getBidIdParameter('bidRequestsCount', bid);
   beOpReqObject.bdrc = utils.getBidIdParameter('bidderRequestCount', bid);
   beOpReqObject.bwc = utils.getBidIdParameter('bidderWinsCount', bid);
+
   return beOpReqObject;
 }
+
 registerBidder(spec);
