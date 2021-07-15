@@ -1,6 +1,5 @@
 import * as utils from '../src/utils.js';
 import { registerBidder } from '../src/adapters/bidderFactory.js';
-import { BANNER } from '../src/mediaTypes.js';
 import { config } from '../src/config.js';
 const BIDDER_CODE = 'beop';
 const ENDPOINT_URL = 'https://s.beop.io/bid';
@@ -14,23 +13,10 @@ export const spec = {
     * Test if the bid request is valid.
     *
     * @param {bid} : The Bid params
-    * @return boolean true if the bid request is valid (aka contains a valid accountId), false otherwise.
+    * @return boolean true if the bid request is valid (aka contains a valid accountId or networkId and is open for BANNER), false otherwise.
     */
   isBidRequestValid: function(bid) {
-    let isValid = false;
-    if (typeof bid.params !== 'undefined') {
-      let regexp = new RegExp('^[0-9a-fA-F]{24}$');
-      let accountIdToTest = utils.getValue(bid.params, 'accountId') || utils.getValue(bid.params, 'networkId')
-      let isValidAccountId = regexp.test(accountIdToTest);
-      let isBannerMediaTypeAllowed = bid.mediaType === BANNER || utils.deepAccess(bid, 'mediaTypes.banner');
-      isValid = isValidAccountId && isBannerMediaTypeAllowed;
-      if (!isValid && !isValidAccountId) {
-        utils.logError('BeOp requires a valid accountId in the Bid Parameters → Bid is aborted');
-      } else if (!isValid && !isBannerMediaTypeAllowed) {
-        utils.logWarn('BeOp is only bidding for banner MediaType')
-      }
-    }
-    return isValid;
+    return !!((bid.params.accountId || bid.params.networkId) && bid.mediaTypes.banner);
   },
   /**
     * Create a BeOp server request from a list of BidRequest
@@ -41,19 +27,16 @@ export const spec = {
     */
   buildRequests: function(validBidRequests, bidderRequest) {
     const slots = validBidRequests.map(beOpRequestObjectMaker);
-    let date = new Date();
-    let dateISO = date.toISOString().split('.')[0] + date.offsetToTimezone();
     let pageUrl = utils.deepAccess(bidderRequest, 'refererInfo.canonicalUrl') || config.getConfig('pageUrl') || utils.deepAccess(window, 'location.href');
     let fpd = config.getLegacyFpd(config.getConfig('ortb2')) || {site: {keywords: []}};
     let gdpr = bidderRequest.gdprConsent;
 
     let payloadObject = {
-      at: date.toString(),
+      at: new Date().toString(),
       nid: slots[0].nid,
       nptnid: slots[0].nptnid,
       pid: slots[0].pid,
       url: encodeURIComponent(pageUrl),
-      date: dateISO,
       lang: (window.navigator.language || window.navigator.languages[0]),
       kwds: fpd.site.keywords,
       dbg: false,
@@ -83,7 +66,7 @@ export const spec = {
       return;
     }
 
-    let trackingParams = buildTrackingParams(timeoutData, 'timeout',timeoutData.timeout);
+    let trackingParams = buildTrackingParams(timeoutData, 'timeout', timeoutData.timeout);
 
     utils.logWarn(BIDDER_CODE + ': timed out request');
     utils.triggerPixel(utils.buildUrl({
@@ -110,16 +93,16 @@ export const spec = {
 
 function buildTrackingParams(data, info, value) {
   return {
-        pid: utils.getValue(data.params, 'accountId'),
-        nid: utils.getValue(data.params, 'networkId'),
-        nptnid: utils.getValue(data.params, 'networkPatnerId'),
-        bid: data.bidId,
-        sl_n: data.adUnitCode,
-        aid: data.auctionId,
-        se_ca: 'bid',
-        se_ac: info,
-        se_va: value
-      };
+    pid: utils.getValue(data.params, 'accountId'),
+    nid: utils.getValue(data.params, 'networkId'),
+    nptnid: utils.getValue(data.params, 'networkPatnerId'),
+    bid: data.bidId,
+    sl_n: data.adUnitCode,
+    aid: data.auctionId,
+    se_ca: 'bid',
+    se_ac: info,
+    se_va: value
+  };
 }
 
 /** function mongoObjectId() {

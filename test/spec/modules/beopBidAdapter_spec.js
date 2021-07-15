@@ -32,7 +32,6 @@ describe('BeOp Bid Adapter tests', () => {
   });
 
   describe('isBidRequestValid', function() {
-
     it('should return true when accountId params found', function () {
       expect(spec.isBidRequestValid(validBid)).to.equal(true);
     });
@@ -56,13 +55,13 @@ describe('BeOp Bid Adapter tests', () => {
     });
 
     it('should return false if account Id param is not an ObjectId', function () {
-          let bid = Object.assign({}, validBid);
-          delete bid.params;
-          bid.params = {
-            'someId': '12345'
-          };
-          expect(spec.isBidRequestValid(bid)).to.equal(false);
-        });
+      let bid = Object.assign({}, validBid);
+      delete bid.params;
+      bid.params = {
+        'someId': '12345'
+      };
+      expect(spec.isBidRequestValid(bid)).to.equal(false);
+    });
 
     it('should return false if there is no banner media type', function () {
       let bid = Object.assign({}, validBid);
@@ -79,5 +78,14 @@ describe('BeOp Bid Adapter tests', () => {
   describe('buildRequests', function () {
     let bidRequests = [];
     bidRequests.push(validBid);
+
+    it('should build the request', function () {
+      const request = spec.buildRequests(bidRequests, {});
+      const payload = JSON.parse(request.data);
+      expect(payload.pid).to.exist;
+      expect(payload.pid).to.equal('5a8af500c9e77c00017e4cad');
+      expect(payload.slts[0].name).to.exist;
+      expect(payload.slts[0].name).to.equal('bellow-article');
+    });
   });
 });
