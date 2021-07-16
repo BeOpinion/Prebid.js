@@ -5,6 +5,8 @@ const BIDDER_CODE = 'beop';
 const ENDPOINT_URL = 'https://s.beop.io/bid';
 const TCF_VENDOR_ID = 666;
 
+const validIdRegExp = /^[0-9a-fA-F]{24}$/
+
 export const spec = {
   code: BIDDER_CODE,
   gvlid: TCF_VENDOR_ID,
@@ -16,7 +18,14 @@ export const spec = {
     * @return boolean true if the bid request is valid (aka contains a valid accountId or networkId and is open for BANNER), false otherwise.
     */
   isBidRequestValid: function(bid) {
-    return !!((bid.params.accountId || bid.params.networkId) && bid.mediaTypes.banner);
+    const id = bid.params.accountId || bid.params.networkId;
+    if (id == null) {
+      return false
+    }
+    if (!validIdRegExp.test(id)) {
+      return false
+    }
+    return bid.mediaTypes.banner != null;
   },
   /**
     * Create a BeOp server request from a list of BidRequest
@@ -26,17 +35,18 @@ export const spec = {
     * @return ServerRequest Info describing the request to the BeOp's server
     */
   buildRequests: function(validBidRequests, bidderRequest) {
-    const slots = validBidRequests.map(beOpRequestObjectMaker);
+    const slots = validBidRequests.map(beOpRequestSlotsMaker);
     let pageUrl = utils.deepAccess(bidderRequest, 'refererInfo.canonicalUrl') || config.getConfig('pageUrl') || utils.deepAccess(window, 'location.href');
     let fpd = config.getLegacyFpd(config.getConfig('ortb2')) || {site: {keywords: []}};
     let gdpr = bidderRequest.gdprConsent;
+    let firstSlot = slots[0];
 
     let payloadObject = {
       at: new Date().toString(),
-      nid: slots[0].nid,
-      nptnid: slots[0].nptnid,
-      pid: slots[0].pid,
-      url: encodeURIComponent(pageUrl),
+      nid: firstSlot.nid,
+      nptnid: firstSlot.nptnid,
+      pid: firstSlot.pid,
+      url: pageUrl,
       lang: (window.navigator.language || window.navigator.languages[0]),
       kwds: fpd.site.keywords,
       dbg: false,
@@ -52,17 +62,13 @@ export const spec = {
     }
   },
   interpretResponse: function(serverResponse, request) {
-    let bids = [];
-    if (serverResponse && serverResponse.body && utils.isArray(serverResponse.body.bids && serverResponse.body.bids.length)) {
-      serverResponse.body.bids.forEach((bid) => {
-        // For now, no transformation to do
-        bids.push(bid);
-      });
+    if (serverResponse && serverResponse.body && utils.isArray(serverResponse.body.bids) && serverResponse.body.bids.length > 0) {
+      return serverResponse.body.bids;
     }
-    return bids;
+    return [];
   },
   onTimeout: function(timeoutData) {
-    if (timeoutData == null) {
+    if (timeoutData === null || timeoutData === undefined || Object.keys(timeoutData).length === 0) {
       return;
     }
 
@@ -72,11 +78,12 @@ export const spec = {
     utils.triggerPixel(utils.buildUrl({
       protocol: 'https',
       hostname: 't.beop.io',
-      pathname: '/i',
-      search: trackingParams}));
+      pathname: '/bid',
+      search: trackingParams
+    }));
   },
   onBidWon: function(bid) {
-    if (bid == null) {
+    if (bid === null || bid === undefined || Object.keys(bid).length === 0) {
       return;
     }
     let trackingParams = buildTrackingParams(bid, 'won', bid.cpm);
@@ -85,17 +92,18 @@ export const spec = {
     utils.triggerPixel(utils.buildUrl({
       protocol: 'https',
       hostname: 't.beop.io',
-      pathname: '/i',
-      search: trackingParams}));
+      pathname: '/bid',
+      search: trackingParams
+    }));
   },
   onSetTargeting: function(bid) {}
 }
 
 function buildTrackingParams(data, info, value) {
   return {
-    pid: utils.getValue(data.params, 'accountId'),
-    nid: utils.getValue(data.params, 'networkId'),
-    nptnid: utils.getValue(data.params, 'networkPatnerId'),
+    pid: data.params.accountId,
+    nid: data.params.networkId,
+    nptnid: data.params.networkPatnerId,
     bid: data.bidId,
     sl_n: data.adUnitCode,
     aid: data.auctionId,
@@ -105,40 +113,32 @@ function buildTrackingParams(data, info, value) {
   };
 }
 
-/** function mongoObjectId() {
-  var timestamp = (new Date().getTime() / 1000 | 0).toString(16);
-  return timestamp + 'xxxxxxxxxxxxxxxx'.replace(/[x]/g, function() {
-    return (Math.random() * 16 | 0).toString(16);
-  }).toLowerCase();
-}; */
-
-function beOpRequestObjectMaker(bid) {
-  const beOpReqObject = {};
-  let bannerReq = utils.deepAccess(bid, 'mediaTypes.banner');
-  let bannerSizes = bannerReq.sizes;
-  beOpReqObject.sizes = utils.isArray(bannerSizes) ? utils.isArray(bannerSizes) : bid.sizes;
-  var publisherCurrency = utils.getValue(bid.params, 'currency') || 'EUR';
-  var floor;
+function beOpRequestSlotsMaker(bid) {
+  const bannerReq = utils.deepAccess(bid, 'mediaTypes.banner');
+  const bannerSizes = bannerReq.sizes;
+  const publisherCurrency = utils.getValue(bid.params, 'currency') || 'EUR';
+  let floor;
   if (typeof bid.getFloor === 'function') {
     const floorInfo = bid.getFloor({currency: publisherCurrency, mediaType: 'banner', size: [1, 1]});
     if (typeof floorInfo === 'object' && floorInfo.currency === publisherCurrency && !isNaN(parseFloat(floorInfo.floor))) {
       floor = parseFloat(floorInfo.floor);
     }
   }
-  beOpReqObject.flr = floor;
-  beOpReqObject.pid = utils.getValue(bid.params, 'accountId');
-  beOpReqObject.nid = utils.getValue(bid.params, 'networkId');
-  beOpReqObject.nptnid = utils.getValue(bid.params, 'networkPatnerId');
-  beOpReqObject.bid = utils.getBidIdParameter('bidId', bid);
-  beOpReqObject.brid = utils.getBidIdParameter('bidderRequestId', bid);
-  beOpReqObject.name = utils.getBidIdParameter('adUnitCode', bid);
-  beOpReqObject.aid = utils.getBidIdParameter('auctionId', bid);
-  beOpReqObject.tid = utils.getBidIdParameter('transactionId', bid);
-  beOpReqObject.brc = utils.getBidIdParameter('bidRequestsCount', bid);
-  beOpReqObject.bdrc = utils.getBidIdParameter('bidderRequestCount', bid);
-  beOpReqObject.bwc = utils.getBidIdParameter('bidderWinsCount', bid);
-
-  return beOpReqObject;
+  return {
+    sizes: utils.isArray(bannerSizes) ? utils.isArray(bannerSizes) : bid.sizes,
+    flr: floor,
+    pid: utils.getValue(bid.params, 'accountId'),
+    nid: utils.getValue(bid.params, 'networkId'),
+    nptnid: utils.getValue(bid.params, 'networkPatnerId'),
+    bid: utils.getBidIdParameter('bidId', bid),
+    brid: utils.getBidIdParameter('bidderRequestId', bid),
+    name: utils.getBidIdParameter('adUnitCode', bid),
+    aid: utils.getBidIdParameter('auctionId', bid),
+    tid: utils.getBidIdParameter('transactionId', bid),
+    brc: utils.getBidIdParameter('bidRequestsCount', bid),
+    bdrc: utils.getBidIdParameter('bidderRequestCount', bid),
+    bwc: utils.getBidIdParameter('bidderWinsCount', bid),
+  }
 }
 
 registerBidder(spec);

@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { spec } from 'modules/beopBidAdapter.js';
 import { newBidder } from 'src/adapters/bidderFactory.js';
+const utils = require('src/utils');
 
 const ENDPOINT = 'https://s.beop.io/bid';
 
@@ -82,10 +83,53 @@ describe('BeOp Bid Adapter tests', () => {
     it('should build the request', function () {
       const request = spec.buildRequests(bidRequests, {});
       const payload = JSON.parse(request.data);
+      const url = request.url;
+      expect(url).to.equal(ENDPOINT);
       expect(payload.pid).to.exist;
       expect(payload.pid).to.equal('5a8af500c9e77c00017e4cad');
       expect(payload.slts[0].name).to.exist;
       expect(payload.slts[0].name).to.equal('bellow-article');
+    });
+
+    it('should call the endpoint with GDPR consent and pageURL info if found', function () {
+      let consentString = 'BOJ8RZsOJ8RZsABAB8AAAAAZ+A==';
+      const request = spec.buildRequests(bidRequests, {});
+    });
+  });
+
+  describe('timeout and bid won pixel trigger', function () {
+    let triggerPixelStub;
+
+    beforeEach(function () {
+      triggerPixelStub = sinon.stub(utils, 'triggerPixel');
+    });
+
+    afterEach(function () {
+      utils.triggerPixel.restore();
+    });
+
+    it('should call triggerPixel utils function when timed out is filled', function () {
+      spec.onTimeout({});
+      spec.onTimeout();
+      expect(triggerPixelStub.getCall(0)).to.be.null;
+      spec.onTimeout({params: {accountId: '5a8af500c9e77c00017e4cad'}, timeout: 2000});
+      expect(triggerPixelStub.getCall(0)).to.not.be.null;
+      expect(triggerPixelStub.getCall(0).args[0]).to.exist.and.to.include('https://t.beop.io');
+      expect(triggerPixelStub.getCall(0).args[0]).to.include('se_ca=bid');
+      expect(triggerPixelStub.getCall(0).args[0]).to.include('se_ac=timeout');
+      expect(triggerPixelStub.getCall(0).args[0]).to.include('pid=5a8af500c9e77c00017e4cad');
+    });
+
+    it('should call triggerPixel utils function on bid won', function () {
+      spec.onBidWon({});
+      spec.onBidWon();
+      expect(triggerPixelStub.getCall(0)).to.be.null;
+      spec.onBidWon({params: {accountId: '5a8af500c9e77c00017e4cad'}, cpm: 1.2});
+      expect(triggerPixelStub.getCall(0)).to.not.be.null;
+      expect(triggerPixelStub.getCall(0).args[0]).to.exist.and.to.include('https://t.beop.io');
+      expect(triggerPixelStub.getCall(0).args[0]).to.include('se_ca=bid');
+      expect(triggerPixelStub.getCall(0).args[0]).to.include('se_ac=won');
+      expect(triggerPixelStub.getCall(0).args[0]).to.exist.and.to.include('pid=5a8af500c9e77c00017e4cad');
     });
   });
 });
