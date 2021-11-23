@@ -99,11 +99,12 @@ export const spec = {
 }
 
 function buildTrackingParams(data, info, value) {
+  const accountId = data.params.accountId;
   return {
-    pid: data.params.accountId,
+    pid: accountId === undefined ? data.ad.match(/account: \"([a-f\d]{24})\"/)[1] : accountId,
     nid: data.params.networkId,
     nptnid: data.params.networkPartnerId,
-    bid: data.bidId,
+    bid: data.bidId || data.requestId,
     sl_n: data.adUnitCode,
     aid: data.auctionId,
     se_ca: 'bid',
