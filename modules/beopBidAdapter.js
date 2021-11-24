@@ -109,7 +109,8 @@ function buildTrackingParams(data, info, value) {
     aid: data.auctionId,
     se_ca: 'bid',
     se_ac: info,
-    se_va: value
+    se_va: value,
+    url: window.location.href
   };
 }
 
