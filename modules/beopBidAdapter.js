@@ -53,12 +53,16 @@ export const spec = {
     const gdpr = bidderRequest.gdprConsent;
     const firstSlot = slots[0];
     const kwdsFromRequest = bidderRequest.ortb2?.site?.keywords;
-    const keywords = [];
+    let keywords = [];
     if (kwdsFromRequest) {
       if (isArray(kwdsFromRequest)) {
         keywords = kwdsFromRequest;
       } else {
-        keywords.push(kwdsFromRequest);
+        if (kwdsFromRequest.indexOf(",") != -1) {
+          keywords = kwdsFromRequest.split(",");
+        } else {
+          keywords.push(kwdsFromRequest);
+        }
       }
     }
 
