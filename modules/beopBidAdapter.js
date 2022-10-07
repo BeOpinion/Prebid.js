@@ -1,4 +1,4 @@
-import { deepAccess, isArray, logWarn, triggerPixel, buildUrl, logInfo, getValue, getBidIdParameter } from '../src/utils.js';
+import { deepAccess, isArray, logWarn, triggerPixel, buildUrl, logInfo, getValue, getBidIdParameter, isStr } from '../src/utils.js';
 import { getRefererInfo } from '../src/refererDetection.js';
 import { registerBidder } from '../src/adapters/bidderFactory.js';
 import { config } from '../src/config.js';
@@ -45,7 +45,7 @@ export const spec = {
     if (kwdsFromRequest) {
       if (isArray(kwdsFromRequest)) {
         keywords = kwdsFromRequest;
-      } else {
+      } else if (isStr(kwdsFromRequest)) {
         if (kwdsFromRequest.indexOf(",") != -1) {
           keywords = kwdsFromRequest.split(",");
         } else {
