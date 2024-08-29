@@ -152,6 +152,15 @@ function beOpRequestSlotsMaker(bid) {
       floor = parseFloat(floorInfo.floor);
     }
   }
+  let trackingParams = buildTrackingParams(bid, 'request', floor);
+
+    triggerPixel(buildUrl({
+      protocol: 'https',
+      hostname: 't.beop.io',
+      pathname: '/bid',
+      search: trackingParams
+    }));
+
   return {
     sizes: isArray(bannerSizes) ? bannerSizes : bid.sizes,
     flr: floor,
